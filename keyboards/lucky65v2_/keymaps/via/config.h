@@ -1,0 +1,6 @@
+#pragma once
+
+#undef DEBOUNCE
+#define DEBOUNCE 5
+#define RGB_MATRIX_LED_PROCESS_LIMIT 5
+#define RGB_MATRIX_LED_FLUSH_LIMIT 16

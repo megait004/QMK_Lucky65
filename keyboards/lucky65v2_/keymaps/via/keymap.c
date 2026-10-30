@@ -4,6 +4,7 @@
 #include QMK_KEYBOARD_H
 #include "immobile.h"
 #include "color.h"
+#include "usb_main.h"
 
 uint8_t Shift_key_press = 0;
 uint8_t KC_GRV_key_Release_flag = 0;
@@ -272,9 +273,13 @@ bool im_reset_settings_user(void) {
 
     return true;
 }
+static void socd_task(void);
+
 bool chrg_flag = false;
 // 无限循环
 bool im_loop_user(void) {
+
+    socd_task();
 
     if (timer_elapsed32(readbat) >= 3000) {
         readbat = timer_read32();
@@ -675,3 +680,129 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     return true;
 }
 #endif
+
+#define STOP_TAP_MS 16 // 2 tick @128 tick (Valorant): server luon sample duoc it nhat 1 tick
+#define STOP_TAP_KEYCODE KC_LCTL
+
+static const uint8_t socd_keys[] = {KC_A, KC_D, KC_W, KC_S};
+static bool socd_held[ARRAY_SIZE(socd_keys)];
+static bool stop_tap_key_held = false;
+static bool game_mode = false;
+
+static deferred_token stop_tap_token = INVALID_DEFERRED_TOKEN;
+static bool stop_tap_added_shift = false;
+
+static void stop_tap_end(void) {
+    unregister_code(STOP_TAP_KEYCODE);
+    if (stop_tap_added_shift) {
+        unregister_code(KC_LSFT);
+    }
+    stop_tap_added_shift = false;
+    stop_tap_token = INVALID_DEFERRED_TOKEN;
+}
+
+static uint32_t stop_tap_timeout(uint32_t trigger_time, void *cb_arg) {
+    (void)trigger_time;
+    (void)cb_arg;
+    stop_tap_end();
+    return 0;
+}
+
+static void stop_tap_cancel(void) {
+    if (stop_tap_token == INVALID_DEFERRED_TOKEN) {
+        return;
+    }
+    cancel_deferred_exec(stop_tap_token);
+    stop_tap_end();
+}
+
+static void stop_tap_start(void) {
+    if (stop_tap_token != INVALID_DEFERRED_TOKEN || stop_tap_key_held) {
+        return;
+    }
+    // get_mods() khong duoc cap nhat o che do wireless, phai kiem tra them Shift_key_press
+    stop_tap_added_shift = !Shift_key_press && !(get_mods() & (MOD_BIT(KC_LSFT) | MOD_BIT(KC_RSFT)));
+    if (stop_tap_added_shift) {
+        register_code(KC_LSFT);
+    }
+    register_code(STOP_TAP_KEYCODE);
+    stop_tap_token = defer_exec(STOP_TAP_MS, stop_tap_timeout, NULL);
+}
+
+static bool move_held(void) {
+    for (uint8_t i = 0; i < ARRAY_SIZE(socd_keys); i++) {
+        if (socd_held[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void socd_update(uint8_t index, bool pressed) {
+    uint8_t other = index ^ 1;
+    socd_held[index] = pressed;
+    if (pressed) {
+        stop_tap_cancel();
+        if (socd_held[other]) {
+            unregister_code(socd_keys[other]);
+        }
+        register_code(socd_keys[index]);
+    } else {
+        unregister_code(socd_keys[index]);
+        if (socd_held[other]) {
+            register_code(socd_keys[other]);
+        } else if (!move_held()) {
+            stop_tap_start();
+        }
+    }
+}
+
+static void socd_reset(void) {
+    for (uint8_t i = 0; i < ARRAY_SIZE(socd_keys); i++) {
+        socd_held[i] = false;
+    }
+    stop_tap_cancel();
+}
+
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    if ((mm_eeconfig.devs == DEVS_USB) && (USB_DRIVER.state == USB_SUSPENDED)) {
+        return true;
+    }
+
+    if (layer_state_is(1) && (keycode == KC_G) && record->event.pressed) {
+        game_mode = !game_mode;
+        socd_reset();
+        return false;
+    }
+
+    if (keycode == STOP_TAP_KEYCODE) {
+        stop_tap_key_held = record->event.pressed;
+        return true;
+    }
+
+    if (game_mode) {
+        for (uint8_t i = 0; i < ARRAY_SIZE(socd_keys); i++) {
+            if (keycode == socd_keys[i]) {
+                socd_update(i, record->event.pressed);
+                return false;
+            }
+        }
+        if (record->event.pressed) {
+            stop_tap_cancel();
+        }
+    }
+
+    return true;
+}
+
+static void socd_task(void) {
+    static uint8_t last_devs = DEVS_USB;
+    // mm_clear_all_keys() cua vendor da nha het phim khi doi mode, chi can reset co
+    if (mm_eeconfig.devs != last_devs) {
+        last_devs = mm_eeconfig.devs;
+        socd_reset();
+    }
+    if ((mm_eeconfig.devs == DEVS_USB) && (USB_DRIVER.state == USB_SUSPENDED)) {
+        socd_reset();
+    }
+}
