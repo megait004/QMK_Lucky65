@@ -7,6 +7,11 @@
 #include "usb_main.h"
 
 uint8_t Shift_key_press = 0;
+uint8_t Gui_key_press = 0;
+static uint16_t gui_held_keycode = KC_LGUI;
+static bool gui_sent_to_host = false;
+static uint8_t win_nav_held = 0;
+static bool win_nav_from[4];
 uint8_t KC_GRV_key_Release_flag = 0;
 enum layers {
     _LB = 0,
@@ -43,16 +48,16 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
     [ _LF] = LAYOUT( /* Base */
         EE_CLR,    KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,  KC_F12,  RGB_TOG, _______,KC_MUTE,
-        TO(_LM),   IM_BT1,  IM_BT2,  IM_BT3,  IM_2G4,  IM_USB, _______,  _______, _______, _______, KC_PSCR, _______, _______, RGB_MOD, _______,
-        _______,   _______, _______, _______, _______, _______, KC_SCRL, KC_PAUS, KC_HOME, KC_END,  _______, _______, RGB_HUI,          _______,
-        _______,   _______,  _______,  _______,  _______, _______, _______, _______, _______, _______, _______, _______,          RGB_VAI, _______,
+        TO(_LM),   IM_BT1,  IM_BT2,  IM_BT3,  IM_2G4,  IM_USB, _______,  _______, LGUI(KC_I), _______, KC_PSCR, _______, _______, RGB_MOD, _______,
+        _______,   _______, LGUI(KC_S), LGUI(KC_D), _______, _______, KC_LEFT, KC_DOWN, KC_UP, KC_RGHT,  _______, _______, RGB_HUI,          _______,
+        _______,   _______,  _______,  _______,  LGUI(KC_V), _______, _______, _______, LGUI(KC_COMM), LGUI(KC_DOT), _______, _______,          RGB_VAI, _______,
         NUM_TOF1,   GU_TOGG, _______,                            IM_BATQ,IM_BATQ,IM_BATQ,                            _______, _______, RGB_SPD, RGB_VAD, RGB_SPI),
 
     [_LS] = LAYOUT( /* Base */
         EE_CLR,    KC_MYCM, KC_MAIL, KC_WHOM, KC_CALC, KC_MSEL, KC_MSTP, KC_MPRV, KC_MPLY, KC_MNXT, KC_MUTE, KC_VOLD, KC_VOLU, RGB_TOG, _______,KC_MUTE,
-        TO(_LM),   IM_BT1,  IM_BT2,  IM_BT3,  IM_2G4,  IM_USB, _______,  _______, _______, _______, KC_PSCR, _______, _______, RGB_MOD, _______,
-        _______,   _______, _______, _______, _______, _______, KC_SCRL, KC_PAUS, KC_HOME, KC_END,  _______, _______, RGB_HUI,          _______,
-        _______,   _______,  _______,  _______,  _______, _______, _______, _______, _______, _______, _______, _______,          RGB_VAI, _______,
+        TO(_LM),   IM_BT1,  IM_BT2,  IM_BT3,  IM_2G4,  IM_USB, _______,  _______, LGUI(KC_I), _______, KC_PSCR, _______, _______, RGB_MOD, _______,
+        _______,   _______, LGUI(KC_S), LGUI(KC_D), _______, _______, KC_LEFT, KC_DOWN, KC_UP, KC_RGHT,  _______, _______, RGB_HUI,          _______,
+        _______,   _______,  _______,  _______,  LGUI(KC_V), _______, _______, _______, LGUI(KC_COMM), LGUI(KC_DOT), _______, _______,          RGB_VAI, _______,
         NUM_TOF1,   GU_TOGG, _______,                            IM_BATQ,IM_BATQ,IM_BATQ,                            _______, _______, RGB_SPD, RGB_VAD, RGB_SPI),
 
 
@@ -66,16 +71,16 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
     [_LMF] = LAYOUT(  /* FN */
         EE_CLR,    KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,  KC_F12,  RGB_TOG, _______,KC_MUTE,
-        TO(_LB),   IM_BT1,  IM_BT2,  IM_BT3,  IM_2G4,  IM_USB, _______,  _______, _______, _______, KC_PSCR, _______, _______, RGB_MOD, _______,
-        _______,   _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, RGB_HUI,          _______,
-        _______,   _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,          RGB_VAI, _______,
+        TO(_LB),   IM_BT1,  IM_BT2,  IM_BT3,  IM_2G4,  IM_USB, _______,  _______, LGUI(KC_I), _______, KC_PSCR, _______, _______, RGB_MOD, _______,
+        _______,   _______, LGUI(KC_S), LGUI(KC_D), _______, _______, KC_LEFT, KC_DOWN, KC_UP, KC_RGHT, _______, _______, RGB_HUI,          _______,
+        _______,   _______, _______, _______, LGUI(KC_V), _______, _______, _______, LGUI(KC_COMM), LGUI(KC_DOT), _______, _______,          RGB_VAI, _______,
         NUM_TOF1,   _______, _______,                            IM_BATQ,IM_BATQ,IM_BATQ,                            _______, _______, RGB_SPD, RGB_VAD, RGB_SPI),
 
     [_LMS] = LAYOUT(  /* FN */
         EE_CLR,    KC_BRIU, KC_BRID, _______, _______, _______, _______, KC_MPRV, KC_MPLY, KC_MNXT, KC_MUTE, KC_VOLD, KC_VOLU, RGB_TOG, _______,KC_MUTE,
-        TO(_LB),   IM_BT1,  IM_BT2,  IM_BT3,  IM_2G4,  IM_USB, _______,  _______, _______, _______, KC_PSCR, _______, _______, RGB_MOD, _______,
-        _______,   _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, RGB_HUI,          _______,
-        _______,   _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,          RGB_VAI, _______,
+        TO(_LB),   IM_BT1,  IM_BT2,  IM_BT3,  IM_2G4,  IM_USB, _______,  _______, LGUI(KC_I), _______, KC_PSCR, _______, _______, RGB_MOD, _______,
+        _______,   _______, LGUI(KC_S), LGUI(KC_D), _______, _______, KC_LEFT, KC_DOWN, KC_UP, KC_RGHT, _______, _______, RGB_HUI,          _______,
+        _______,   _______, _______, _______, LGUI(KC_V), _______, _______, _______, LGUI(KC_COMM), LGUI(KC_DOT), _______, _______,          RGB_VAI, _______,
         NUM_TOF1,   _______, _______,                            IM_BATQ,IM_BATQ,IM_BATQ,                            _______, _______, RGB_SPD, RGB_VAD, RGB_SPI),
 
 };
@@ -259,6 +264,11 @@ bool im_init_user(void) {
     readbat = timer_read32();
 #ifdef RGB_MATRIX_BLINK_INDEX_BAT
     rgb_matrix_blink_set(RGB_MATRIX_BLINK_INDEX_BAT);
+#endif
+#ifdef VIA_ENABLE
+    if (dynamic_keymap_get_keycode(0, 4, 2) == KC_NO) {
+        dynamic_keymap_set_keycode(0, 4, 2, KC_LGUI);
+    }
 #endif
 
     return true;
@@ -509,15 +519,18 @@ bool im_process_record_user(uint16_t keycode, keyrecord_t *record) {
         }
         return false;
     break;
-    case KC_LGUI: {
-        if (record->event.pressed)
-        {
-            if(confinfo.no_gui)
-            return false;
-            else
-            return true;
+    case KC_LGUI:
+    case KC_RGUI: {
+        if (record->event.pressed) {
+            Gui_key_press = 1;
+            gui_held_keycode = keycode;
+            gui_sent_to_host = false;
+            if (confinfo.no_gui) {
+                return false;
+            }
         }
-    }break;
+        return true;
+    } break;
     case GU_TOGG: {
         if(record->event.pressed){
             confinfo.no_gui = !confinfo.no_gui;
@@ -764,9 +777,89 @@ static void socd_reset(void) {
     stop_tap_cancel();
 }
 
+static int8_t win_nav_index(uint16_t keycode) {
+    switch (keycode) {
+        case KC_H:
+            return 0;
+        case KC_J:
+            return 1;
+        case KC_K:
+            return 2;
+        case KC_L:
+            return 3;
+        default:
+            return -1;
+    }
+}
+
+static const uint16_t win_nav_arrows[] = {KC_LEFT, KC_DOWN, KC_UP, KC_RIGHT};
+
+static void win_nav_reset(void) {
+    for (uint8_t i = 0; i < ARRAY_SIZE(win_nav_arrows); i++) {
+        if (win_nav_from[i]) {
+            unregister_code(win_nav_arrows[i]);
+            win_nav_from[i] = false;
+        }
+    }
+    if (gui_sent_to_host) {
+        unregister_code(KC_LGUI);
+        unregister_code(KC_RGUI);
+        gui_sent_to_host = false;
+    }
+    win_nav_held = 0;
+    Gui_key_press = 0;
+}
+
+static bool process_win_nav(uint16_t keycode, keyrecord_t *record) {
+    if (get_highest_layer(layer_state | default_layer_state) != _LB) {
+        return true;
+    }
+
+    if (keycode == KC_LGUI || keycode == KC_RGUI) {
+        if (record->event.pressed) {
+            Gui_key_press = 1;
+            gui_held_keycode = keycode;
+            gui_sent_to_host = false;
+            return false;
+        }
+        Gui_key_press = 0;
+        if (gui_sent_to_host) {
+            unregister_code(KC_LGUI);
+            unregister_code(KC_RGUI);
+            gui_sent_to_host = false;
+        }
+        return false;
+    }
+
+    int8_t nav_i = win_nav_index(keycode);
+    if (nav_i >= 0) {
+        if (record->event.pressed) {
+            if (Gui_key_press) {
+                register_code(win_nav_arrows[nav_i]);
+                win_nav_from[nav_i] = true;
+                win_nav_held++;
+                return false;
+            }
+        } else if (win_nav_from[nav_i]) {
+            unregister_code(win_nav_arrows[nav_i]);
+            win_nav_from[nav_i] = false;
+            if (win_nav_held) {
+                win_nav_held--;
+            }
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if ((mm_eeconfig.devs == DEVS_USB) && (USB_DRIVER.state == USB_SUSPENDED)) {
         return true;
+    }
+
+    if (!process_win_nav(keycode, record)) {
+        return false;
     }
 
     if (layer_state_is(1) && (keycode == KC_G) && record->event.pressed) {
@@ -801,8 +894,10 @@ static void socd_task(void) {
     if (mm_eeconfig.devs != last_devs) {
         last_devs = mm_eeconfig.devs;
         socd_reset();
+        win_nav_reset();
     }
     if ((mm_eeconfig.devs == DEVS_USB) && (USB_DRIVER.state == USB_SUSPENDED)) {
         socd_reset();
+        win_nav_reset();
     }
 }
