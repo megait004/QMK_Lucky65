@@ -810,6 +810,14 @@ static void win_nav_reset(void) {
     Gui_key_press = 0;
 }
 
+static void win_flush_gui_to_host(void) {
+    if (!Gui_key_press || gui_sent_to_host || confinfo.no_gui) {
+        return;
+    }
+    register_code(gui_held_keycode);
+    gui_sent_to_host = true;
+}
+
 static bool process_win_nav(uint16_t keycode, keyrecord_t *record) {
     if (get_highest_layer(layer_state | default_layer_state) != _LB) {
         return true;
@@ -828,6 +836,7 @@ static bool process_win_nav(uint16_t keycode, keyrecord_t *record) {
             unregister_code(KC_RGUI);
             gui_sent_to_host = false;
         }
+        // Tap Win alone: never sent to host -> Start menu does not open
         return false;
     }
 
@@ -835,6 +844,7 @@ static bool process_win_nav(uint16_t keycode, keyrecord_t *record) {
     if (nav_i >= 0) {
         if (record->event.pressed) {
             if (Gui_key_press) {
+                // Win+HJKL stays arrow nav; do not flush real GUI
                 register_code(win_nav_arrows[nav_i]);
                 win_nav_from[nav_i] = true;
                 win_nav_held++;
@@ -848,6 +858,12 @@ static bool process_win_nav(uint16_t keycode, keyrecord_t *record) {
             }
             return false;
         }
+    }
+
+    // Deferred GUI: Win+R / Win+V / Win+Shift+S (and other Win chords) work,
+    // but Win alone still does not open Start.
+    if (Gui_key_press && record->event.pressed) {
+        win_flush_gui_to_host();
     }
 
     return true;
